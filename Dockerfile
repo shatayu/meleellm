@@ -10,4 +10,7 @@ COPY . .
 # Create directory for ChromaDB persistence
 RUN mkdir -p chroma_db
 
+# Explicitly expose port (optional)
+EXPOSE 10000
+
 CMD gunicorn --bind 0.0.0.0:$PORT app:app
