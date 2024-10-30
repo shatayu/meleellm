@@ -1,3 +1,4 @@
 flask==3.0.0
 chromadb==0.4.22
 gunicorn==21.2.0
+numpy<2.0.0
