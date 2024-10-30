@@ -25,79 +25,84 @@ def format_timestamp(seconds: float) -> str:
 @lru_cache(maxsize=1)
 def get_persistent_client():
     """Initialize ChromaDB client with persistence."""
+    print(f"Creating ChromaDB client with persist_dir: {PERSIST_DIR}")
     return chromadb.PersistentClient(path=PERSIST_DIR)
 
 def load_processed_videos(pickle_file: str) -> List[Dict]:
     """Load processed video chunks from pickle file."""
-    with open(pickle_file, 'rb') as f:
-        return pickle.load(f)
+    print(f"Attempting to load pickle file: {pickle_file}")
+    print(f"Current directory contents: {os.listdir()}")
+    
+    try:
+        with open(pickle_file, 'rb') as f:
+            chunks = pickle.load(f)
+            print(f"Successfully loaded {len(chunks)} chunks")
+            return chunks
+    except FileNotFoundError:
+        print(f"ERROR: Could not find file {pickle_file}")
+        raise
+    except Exception as e:
+        print(f"ERROR loading pickle file: {str(e)}")
+        raise
 
 def create_or_load_collection():
     """Create a new collection or load existing one with data verification."""
+    print("Starting create_or_load_collection")
     chroma_client = get_persistent_client()
     
     try:
         collection = chroma_client.get_collection(name=COLLECTION_NAME)
+        print(f"Found existing collection with {collection.count()} documents")
         return collection
     except InvalidCollectionException:
-        # Load chunks from pickle file
-        chunks = load_processed_videos(PICKLE_FILE)
-        
-        # Create new collection
-        collection = chroma_client.create_collection(name=COLLECTION_NAME)
-        
-        # Prepare data for ChromaDB
-        documents = []
-        metadatas = []
-        ids = []
-        
-        for chunk in chunks:
-            chunk_id = str(uuid.uuid4())
-            documents.append(chunk['text'])
+        print("Collection doesn't exist, creating new one")
+        try:
+            # Load chunks from pickle file
+            chunks = load_processed_videos(PICKLE_FILE)
             
-            metadata = {
-                'video_title': chunk['video_title'],
-                'video_url': chunk['video_url'],
-                'video_id': chunk['video_id'],
-                'start_time': chunk['start_time'],
-                'end_time': chunk['end_time'],
-                'timestamp': f"{format_timestamp(chunk['start_time'])} - {format_timestamp(chunk['end_time'])}"
-            }
+            # Create new collection
+            collection = chroma_client.create_collection(name=COLLECTION_NAME)
+            print("Created new collection")
             
-            metadatas.append(metadata)
-            ids.append(chunk_id)
-        
-        # Add chunks to collection in batches
-        batch_size = 500
-        for i in range(0, len(documents), batch_size):
-            end_idx = min(i + batch_size, len(documents))
-            collection.add(
-                documents=documents[i:end_idx],
-                metadatas=metadatas[i:end_idx],
-                ids=ids[i:end_idx]
-            )
-        
-        return collection
-
-def query_collection(query_text: str, n_results: int = 3):
-    """Query the collection and return formatted results."""
-    collection = create_or_load_collection()
-    results = collection.query(
-        query_texts=[query_text],
-        n_results=n_results
-    )
-    
-    formatted_results = []
-    for idx, (doc, metadata) in enumerate(zip(results['documents'][0], results['metadatas'][0])):
-        formatted_results.append({
-            'text': doc,
-            'video_title': metadata['video_title'],
-            'video_url': metadata['video_url'],
-            'timestamp': metadata['timestamp'],
-            'relevance_rank': idx + 1
-        })
-    
-    return formatted_results
+            # Prepare data for ChromaDB
+            documents = []
+            metadatas = []
+            ids = []
+            
+            for chunk in chunks:
+                chunk_id = str(uuid.uuid4())
+                documents.append(chunk['text'])
+                
+                metadata = {
+                    'video_title': chunk['video_title'],
+                    'video_url': chunk['video_url'],
+                    'video_id': chunk['video_id'],
+                    'start_time': chunk['start_time'],
+                    'end_time': chunk['end_time'],
+                    'timestamp': f"{format_timestamp(chunk['start_time'])} - {format_timestamp(chunk['end_time'])}"
+                }
+                
+                metadatas.append(metadata)
+                ids.append(chunk_id)
+            
+            print(f"Prepared {len(documents)} documents for insertion")
+            
+            # Add chunks to collection in batches
+            batch_size = 500
+            for i in range(0, len(documents), batch_size):
+                end_idx = min(i + batch_size, len(documents))
+                collection.add(
+                    documents=documents[i:end_idx],
+                    metadatas=metadatas[i:end_idx],
+                    ids=ids[i:end_idx]
+                )
+                print(f"Added batch of chunks {i} to {end_idx}")
+            
+            print("Successfully created and populated collection")
+            return collection
+        except Exception as e:
+            print(f"ERROR in create_or_load_collection: {str(e)}")
+            raise
 
 @app.route('/api/query')
 def get_query():
@@ -119,13 +124,16 @@ def get_query():
 @app.route('/api/health')
 def health_check():
     try:
+        print("Starting health check")
         collection = create_or_load_collection()
         count = collection.count()
+        print(f"Health check successful. Collection size: {count}")
         return jsonify({
             "status": "healthy",
             "collection_size": count
         }), 200
     except Exception as e:
+        print(f"Health check failed: {str(e)}")
         return jsonify({
             "status": "unhealthy",
             "error": str(e)
@@ -134,9 +142,14 @@ def health_check():
 if __name__ == '__main__':
     # Ensure persist directory exists
     os.makedirs(PERSIST_DIR, exist_ok=True)
+    print(f"Ensured persist directory exists: {PERSIST_DIR}")
     
     # Initialize collection on startup
-    create_or_load_collection()
+    try:
+        collection = create_or_load_collection()
+        print(f"Initialized collection on startup")
+    except Exception as e:
+        print(f"Failed to initialize collection on startup: {str(e)}")
     
     port = int(os.getenv('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
