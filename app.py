@@ -123,6 +123,7 @@ def get_query():
 
 @app.route('/api/health')
 def health_check():
+    print("You called the Health API!")
     try:
         print("Starting health check")
         collection = create_or_load_collection()
@@ -133,6 +134,7 @@ def health_check():
             "collection_size": count
         }), 200
     except Exception as e:
+        print("Health exception!!!")
         print(f"Health check failed: {str(e)}")
         return jsonify({
             "status": "unhealthy",

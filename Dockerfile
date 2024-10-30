@@ -1,5 +1,8 @@
 FROM python:3.10.15-slim
 
+# Set Python to run in unbuffered mode
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 # Install system dependencies
@@ -27,4 +30,5 @@ RUN ls -la && pip freeze
 # Expose port
 EXPOSE 10000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--chdir", "/app", "app:app"]
+# Use Gunicorn with log level set to info and access logging enabled
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--log-level", "debug", "--access-logfile", "-", "--error-logfile", "-", "--chdir", "/app", "app:app"]
