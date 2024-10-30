@@ -12,7 +12,7 @@ app = Flask(__name__)
 
 # Configuration
 PERSIST_DIR = os.getenv('PERSIST_DIR', 'chroma_db')
-PICKLE_FILE = os.getenv('PICKLE_FILE', 'processed_videos.pickle')
+PICKLE_FILE = os.getenv('PICKLE_FILE', 'processed_videos.pkl')
 COLLECTION_NAME = os.getenv('COLLECTION_NAME', 'video_transcripts')
 
 def format_timestamp(seconds: float) -> str:
@@ -99,17 +99,13 @@ def query_collection(query_text: str, n_results: int = 3):
     
     return formatted_results
 
-@app.route('/api/query', methods=['POST'])
-def create_query():
-    if not request.is_json:
-        return jsonify({"error": "Content-Type must be application/json"}), 400
-    
-    data = request.get_json()
-    query_text = data.get('query')
-    n_results = data.get('n_results', 3)
+@app.route('/api/query')
+def get_query():
+    query_text = request.args.get('query')
+    n_results = request.args.get('n_results', default=3, type=int)
     
     if not query_text:
-        return jsonify({"error": "Query text is required"}), 400
+        return jsonify({"error": "Query parameter is required"}), 400
     
     try:
         results = query_collection(query_text, n_results)
@@ -120,9 +116,20 @@ def create_query():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/health', methods=['GET'])
+@app.route('/api/health')
 def health_check():
-    return jsonify({"status": "healthy"}), 200
+    try:
+        collection = create_or_load_collection()
+        count = collection.count()
+        return jsonify({
+            "status": "healthy",
+            "collection_size": count
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e)
+        }), 500
 
 if __name__ == '__main__':
     # Ensure persist directory exists
@@ -131,5 +138,5 @@ if __name__ == '__main__':
     # Initialize collection on startup
     create_or_load_collection()
     
-    port = int(os.getenv('PORT', 5000))
+    port = int(os.getenv('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
