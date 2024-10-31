@@ -3,6 +3,8 @@ import pickle
 import uuid
 import os
 
+print(f"Using ChromaDB version: {chromadb.__version__}")
+
 def format_timestamp(seconds: float) -> str:
     """Convert seconds to HH:MM:SS format."""
     hours = int(seconds // 3600)
@@ -11,6 +13,12 @@ def format_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 def build_database():
+    # Remove existing database if it exists
+    if os.path.exists("chroma_db"):
+        print("Removing existing database...")
+        import shutil
+        shutil.rmtree("chroma_db")
+    
     # Create the database directory
     os.makedirs("chroma_db", exist_ok=True)
     
@@ -28,7 +36,7 @@ def build_database():
     collection = client.create_collection(name="video_transcripts")
     
     # Process in batches
-    batch_size = 500
+    batch_size = 1000
     for i in range(0, len(chunks), batch_size):
         end_idx = min(i + batch_size, len(chunks))
         print(f"Processing batch {i} to {end_idx}...")
@@ -62,6 +70,14 @@ def build_database():
     
     print("Database build complete!")
     print(f"Total documents in collection: {collection.count()}")
+    
+    # Verify the collection is queryable
+    print("\nTesting a query...")
+    results = collection.query(
+        query_texts=["test query"],
+        n_results=1
+    )
+    print(f"Query test successful, got {len(results['documents'][0])} results")
 
 if __name__ == "__main__":
     build_database()
