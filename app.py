@@ -86,11 +86,10 @@ def create_or_load_collection():
             doc_count = collection.count()
             print(f"Found existing collection with {doc_count} documents")
             
-            # Add this check: if collection is empty, delete and recreate it
             if doc_count == 0:
                 print("Collection is empty, deleting and recreating...")
                 chroma_client.delete_collection(name=COLLECTION_NAME)
-                raise ValueError("Empty collection")  # This will trigger recreation
+                raise ValueError("Empty collection")
                 
             return collection
             
@@ -109,43 +108,46 @@ def create_or_load_collection():
                 collection = chroma_client.create_collection(name=COLLECTION_NAME)
                 print("Successfully created new empty collection")
                 
-                # Prepare data for ChromaDB
-                print("Preparing documents for insertion...")
-                documents = []
-                metadatas = []
-                ids = []
+                # Use smaller batch size
+                batch_size = 50  # Reduced from 500 to 50
+                print(f"Will process in batches of {batch_size}")
                 
-                for i, chunk in enumerate(chunks):
-                    if i == 0:
-                        print(f"Processing first chunk: {chunk.keys()}")
-                    chunk_id = str(uuid.uuid4())
-                    documents.append(chunk['text'])
+                for i in range(0, len(chunks), batch_size):
+                    end_idx = min(i + batch_size, len(chunks))
+                    print(f"Processing batch {i} to {end_idx}...")
                     
-                    metadata = {
-                        'video_title': chunk['video_title'],
-                        'video_url': chunk['video_url'],
-                        'video_id': chunk['video_id'],
-                        'start_time': chunk['start_time'],
-                        'end_time': chunk['end_time'],
-                        'timestamp': f"{format_timestamp(chunk['start_time'])} - {format_timestamp(chunk['end_time'])}"
-                    }
+                    # Process only current batch
+                    batch_documents = []
+                    batch_metadatas = []
+                    batch_ids = []
                     
-                    metadatas.append(metadata)
-                    ids.append(chunk_id)
-                
-                print(f"Prepared {len(documents)} documents for insertion")
-                
-                # Add chunks to collection in batches
-                batch_size = 500
-                for i in range(0, len(documents), batch_size):
-                    end_idx = min(i + batch_size, len(documents))
-                    print(f"Adding batch {i} to {end_idx}...")
+                    for chunk in chunks[i:end_idx]:
+                        chunk_id = str(uuid.uuid4())
+                        batch_documents.append(chunk['text'])
+                        
+                        metadata = {
+                            'video_title': chunk['video_title'],
+                            'video_url': chunk['video_url'],
+                            'video_id': chunk['video_id'],
+                            'start_time': chunk['start_time'],
+                            'end_time': chunk['end_time'],
+                            'timestamp': f"{format_timestamp(chunk['start_time'])} - {format_timestamp(chunk['end_time'])}"
+                        }
+                        
+                        batch_metadatas.append(metadata)
+                        batch_ids.append(chunk_id)
+                    
+                    print(f"Adding batch {i} to {end_idx} to collection...")
                     collection.add(
-                        documents=documents[i:end_idx],
-                        metadatas=metadatas[i:end_idx],
-                        ids=ids[i:end_idx]
+                        documents=batch_documents,
+                        metadatas=batch_metadatas,
+                        ids=batch_ids
                     )
                     print(f"Successfully added batch {i} to {end_idx}")
+                    
+                    # Force garbage collection after each batch
+                    import gc
+                    gc.collect()
                 
                 print("Successfully created and populated collection")
                 return collection
@@ -159,7 +161,7 @@ def create_or_load_collection():
         print(f"ERROR in create_or_load_collection: {str(e)}")
         print(f"Full traceback: {traceback.format_exc()}")
         raise
-
+    
 def query_collection(query_text: str, n_results: int = 3):
     """Query the collection and return formatted results."""
     print("\n=== Querying Collection ===")
