@@ -17,18 +17,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir numpy==1.24.3
 
-# Copy specifically the files we need
+# Copy the application
 COPY app.py .
-COPY processed_videos.pkl .
 
-# Create directory for ChromaDB persistence
-RUN mkdir -p chroma_db
-
-# Debug: List files and installed packages
-RUN ls -la && pip freeze
+# Copy the pre-built database
+COPY chroma_db/ ./chroma_db/
 
 # Expose port
 EXPOSE 10000
 
-# Use Gunicorn with log level set to info and access logging enabled
+# Use Gunicorn with log level set to info
 CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--log-level", "debug", "--access-logfile", "-", "--error-logfile", "-", "--chdir", "/app", "app:app"]
