@@ -159,23 +159,31 @@ def query_collection(query_text: str, n_results: int = 3):
     print(f"Number of results requested: {n_results}")
     
     collection = create_or_load_collection()
-    print("Got collection, executing query...")
+    print(f"Got collection, count: {collection.count()}")
     
+    print("Executing query...")
     results = collection.query(
         query_texts=[query_text],
         n_results=n_results
     )
-    print(f"Got {len(results['documents'][0])} results")
+    print("Raw query results:", results)  # Add this to see full query response
+    print(f"Got {len(results['documents'][0]) if results['documents'] else 0} results")
     
+    if not results['documents'][0]:
+        print("No documents found in query results")
+        return []
+        
     formatted_results = []
     for idx, (doc, metadata) in enumerate(zip(results['documents'][0], results['metadatas'][0])):
-        formatted_results.append({
+        result = {
             'text': doc,
             'video_title': metadata['video_title'],
             'video_url': metadata['video_url'],
             'timestamp': metadata['timestamp'],
             'relevance_rank': idx + 1
-        })
+        }
+        print(f"Formatted result {idx + 1}:", result)
+        formatted_results.append(result)
     
     print("Successfully formatted results")
     return formatted_results
@@ -194,8 +202,10 @@ def get_query():
         return jsonify({"error": "Query parameter is required"}), 400
     
     try:
+        print("Calling query_collection...")
         results = query_collection(query_text, n_results)
-        print("Query successful")
+        print(f"Query returned {len(results)} results")
+        print("Full results:", results)
         return jsonify({
             "status": "success",
             "results": results
