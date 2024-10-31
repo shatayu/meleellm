@@ -85,9 +85,17 @@ def create_or_load_collection():
             collection = chroma_client.get_collection(name=COLLECTION_NAME)
             doc_count = collection.count()
             print(f"Found existing collection with {doc_count} documents")
+            
+            # Add this check: if collection is empty, delete and recreate it
+            if doc_count == 0:
+                print("Collection is empty, deleting and recreating...")
+                chroma_client.delete_collection(name=COLLECTION_NAME)
+                raise ValueError("Empty collection")  # This will trigger recreation
+                
             return collection
+            
         except (InvalidCollectionException, ValueError) as e:
-            print(f"Collection doesn't exist, got error: {str(e)}")
+            print(f"Collection doesn't exist or is empty, got error: {str(e)}")
             print("Will attempt to create new collection...")
             
             try:
