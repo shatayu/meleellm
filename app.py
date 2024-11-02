@@ -66,7 +66,7 @@ Please provide a clear, well-organized answer to the question using only the inf
         ]
     )
     
-    return message.content
+    return message.content[0].text
 
 # [Previous functions remain the same until query_collection]
 
