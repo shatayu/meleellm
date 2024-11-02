@@ -50,16 +50,17 @@ Important notes:
 - Base your answer ONLY on the information provided in these transcripts
 - Cite the specific videos and timestamps you're drawing information from
 - If the transcripts don't provide enough information to answer the question, say so
-- State the information authoritatively as if it comes from your knoweledge base. Do not refer to the transcripts directly.
+- State the information authoritatively as if it comes from your knoweledge base. NEVER acknowledge or mention the existence of transcripts in any way.
 - Do not explain Melee-specific vocabulary, terminology, or technique names - the viewer is likely already very familiar with Melee-specific vocabulary
 - Use internal citations using brackets, e.g. "Fox has very fast movement options [1]". Include the citation at the end of the prompt,
-e.g. [1] marth vs gaw' video transcript (00:11:53 - 00:15:28)
+e.g. [1] marth vs gaw' video transcript (00:11:53 - 00:15:28). 
+- ONLY include sentences with direct quotes from your sources. Do not include a complete bullet point or sentence without a citation.
 
 Please provide a clear, well-organized answer to the question using only the information from these transcripts."""
 
     # Get response from Claude using the new API
     message = client.messages.create(
-        model="claude-3-haiku-20240307",
+        model="claude-3-5-sonnet-20241022",
         max_tokens=1000,
         temperature=0,
         messages=[
