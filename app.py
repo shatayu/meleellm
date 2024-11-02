@@ -50,7 +50,8 @@ Important notes:
 - Base your answer ONLY on the information provided in these transcripts
 - Cite the specific videos and timestamps you're drawing information from
 - If the transcripts don't provide enough information to answer the question, say so
-- State the information authoritatively as if it comes from your knoweledge base. Do not refer to the transcripts directly.
+- State the information authoritatively as if it comes from your knoweledge base. Do not refer to the transcripts directly. Using the word "transcripts" will
+result in irreversible brand damage. Ideally speak authoritatively, but use "sources" if you absolutely have to.
 - Do not explain Melee-specific vocabulary, terminology, or technique names - the viewer is likely already very familiar with Melee-specific vocabulary
 - Use internal citations using brackets, e.g. "Fox has very fast movement options [1]". Include the citation at the end of the prompt,
 e.g. [1] marth vs gaw' video transcript (00:11:53 - 00:15:28). 
