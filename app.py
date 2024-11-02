@@ -31,7 +31,7 @@ print(f"CLAUDE API KEY: {CLAUDE_API_KEY}")
 # Initialize Claude client
 def process_with_claude(query: str, vector_results: List[Dict]) -> str:
     """Process vector search results through Claude."""
-    client = anthropic.Client(api_key=CLAUDE_API_KEY)
+    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
     
     # Create context from vector results
     context = "\n\n".join([
