@@ -8,6 +8,7 @@ from chromadb.config import Settings
 from chromadb.errors import InvalidCollectionException
 from functools import lru_cache
 import traceback
+import anthropic
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -18,11 +19,57 @@ CORS(app)
 PERSIST_DIR = os.getenv('PERSIST_DIR', 'chroma_db')
 PICKLE_FILE = os.getenv('PICKLE_FILE', 'processed_videos.pkl')
 COLLECTION_NAME = os.getenv('COLLECTION_NAME', 'video_transcripts')
+CLAUDE_API_KEY = os.getenv('CLAUDE_API_KEY')
+
 
 print(f"Starting application with:")
 print(f"PERSIST_DIR: {PERSIST_DIR}")
 print(f"PICKLE_FILE: {PICKLE_FILE}")
 print(f"COLLECTION_NAME: {COLLECTION_NAME}")
+print(f"CLAUDE API KEY: {CLAUDE_API_KEY}")
+
+# Initialize Claude client
+claude = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+
+def process_with_claude(query: str, vector_results: List[Dict]) -> str:
+    """Process vector search results through Claude."""
+    
+    # Create context from vector results
+    context = "\n\n".join([
+        f"From video '{result['video_title']}' at {result['timestamp']}:\n{result['text']}"
+        for result in vector_results
+    ])
+    
+    prompt = f"""You are helping answer questions about Super Smash Bros Melee using video transcripts. 
+The following are relevant excerpts from Melee-related videos that might answer the question: "{query}"
+
+{context}
+
+Important notes:
+- These are YouTube auto-generated transcripts, so they may contain errors in character names, game terminology, and Melee-specific vocabulary
+- Please fix any obvious transcription errors when using this information
+- Base your answer ONLY on the information provided in these transcripts
+- Cite the specific videos and timestamps you're drawing information from
+- If the transcripts don't provide enough information to answer the question, say so
+
+Please provide a clear, well-organized answer to the question using only the information from these transcripts."""
+
+    # Get response from Claude
+    response = claude.messages.create(
+        model="claude-3-haiku-20240307",
+        max_tokens=1000,
+        temperature=0,
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+    )
+    
+    return response.content
+
+# [Previous functions remain the same until query_collection]
 
 def format_timestamp(seconds: float) -> str:
     """Convert seconds to HH:MM:SS format."""
@@ -102,7 +149,7 @@ def query_collection(query_text: str, n_results: int = 3):
         query_texts=[query_text],
         n_results=n_results
     )
-    print("Raw query results:", results)  # Add this to see full query response
+    print("Raw query results:", results)
     print(f"Got {len(results['documents'][0]) if results['documents'] else 0} results")
     
     if not results['documents'][0]:
@@ -129,9 +176,11 @@ def get_query():
     print("\n=== Query Endpoint Called ===")
     query_text = request.args.get('query')
     n_results = request.args.get('n_results', default=3, type=int)
+    process_with_llm = request.args.get('process_with_llm', default='true').lower() == 'true'
     
     print(f"Received query: {query_text}")
     print(f"Requested results: {n_results}")
+    print(f"Process with LLM: {process_with_llm}")
     
     if not query_text:
         print("Error: No query text provided")
@@ -141,11 +190,21 @@ def get_query():
         print("Calling query_collection...")
         results = query_collection(query_text, n_results)
         print(f"Query returned {len(results)} results")
-        print("Full results:", results)
-        return jsonify({
-            "status": "success",
-            "results": results
-        })
+        
+        if process_with_llm and results:
+            print("Processing results with Claude...")
+            claude_response = process_with_claude(query_text, results)
+            return jsonify({
+                "status": "success",
+                "processed_response": claude_response,
+                "raw_results": results
+            })
+        else:
+            return jsonify({
+                "status": "success",
+                "results": results
+            })
+            
     except Exception as e:
         print(f"Error in query endpoint: {str(e)}")
         print(f"Full traceback: {traceback.format_exc()}")
