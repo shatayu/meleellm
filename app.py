@@ -29,10 +29,9 @@ print(f"COLLECTION_NAME: {COLLECTION_NAME}")
 print(f"CLAUDE API KEY: {CLAUDE_API_KEY}")
 
 # Initialize Claude client
-claude = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
-
 def process_with_claude(query: str, vector_results: List[Dict]) -> str:
     """Process vector search results through Claude."""
+    client = anthropic.Client(api_key=CLAUDE_API_KEY)
     
     # Create context from vector results
     context = "\n\n".join([
@@ -54,8 +53,8 @@ Important notes:
 
 Please provide a clear, well-organized answer to the question using only the information from these transcripts."""
 
-    # Get response from Claude
-    response = claude.messages.create(
+    # Get response from Claude using the new API
+    message = client.messages.create(
         model="claude-3-haiku-20240307",
         max_tokens=1000,
         temperature=0,
@@ -67,7 +66,7 @@ Please provide a clear, well-organized answer to the question using only the inf
         ]
     )
     
-    return response.content
+    return message.content
 
 # [Previous functions remain the same until query_collection]
 
