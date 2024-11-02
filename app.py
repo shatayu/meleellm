@@ -54,14 +54,15 @@ Important notes:
 result in irreversible brand damage. Ideally speak authoritatively, but use "sources" if you absolutely have to.
 - Do not explain Melee-specific vocabulary, terminology, or technique names - the viewer is likely already very familiar with Melee-specific vocabulary
 - Use internal citations using brackets, e.g. "Fox has very fast movement options [1]". Include the citation at the end of the prompt,
-e.g. [1] marth vs gaw' video transcript (00:11:53 - 00:15:28). 
+e.g. [1] some video. 
 - ONLY include sentences with direct quotes
+
 
 Please provide a clear, well-organized answer to the question using only the information from these transcripts."""
 
     # Get response from Claude using the new API
     message = client.messages.create(
-        model="claude-3-haiku-20240307",
+        model="claude-3-5-sonnet-20241022",
         max_tokens=1000,
         temperature=0,
         messages=[
