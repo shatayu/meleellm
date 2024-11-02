@@ -8,8 +8,11 @@ from chromadb.config import Settings
 from chromadb.errors import InvalidCollectionException
 from functools import lru_cache
 import traceback
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
+
 
 # Configuration
 PERSIST_DIR = os.getenv('PERSIST_DIR', 'chroma_db')
