@@ -3,4 +3,4 @@ chromadb==0.5.15
 gunicorn==21.2.0
 numpy<2.0.0
 flask-cors==4.0.0
-anthropic==0.8.1
+anthropic==0.38.0
