@@ -1,3 +1,7 @@
+import boto3
+import zipfile
+import shutil
+from pathlib import Path
 from flask import Flask, request, jsonify
 import chromadb
 import pickle
@@ -16,6 +20,12 @@ CORS(app)
 
 
 # Configuration
+# Add these with your existing config section
+AWS_ACCESS_KEY_ID=os.getenv('AWS_ACCESS_KEY_ID', 'none')
+AWS_SECRET_ACCESS_KEY=os.getenv('AWS_SECRET_ACCESS_KEY', 'none')
+AWS_BUCKET_NAME = os.getenv('AWS_BUCKET_NAME', 'meleellm-vectordb')
+AWS_OBJECT_KEY = os.getenv('AWS_OBJECT_KEY', 'chroma_db.zip')
+AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
 PERSIST_DIR = os.getenv('PERSIST_DIR', 'chroma_db')
 PICKLE_FILE = os.getenv('PICKLE_FILE', 'processed_videos.pkl')
 COLLECTION_NAME = os.getenv('COLLECTION_NAME', 'video_transcripts')
@@ -83,6 +93,88 @@ def format_timestamp(seconds: float) -> str:
     minutes = int((seconds % 3600) // 60)
     secs = int(seconds % 60)
     return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+def download_and_prepare_db():
+    """Download ChromaDB from S3 and prepare it for use."""
+    print("\n=== Downloading ChromaDB from S3 ===")
+    
+    # Create a temporary directory for the zip file
+    zip_path = Path('temp_chroma.zip')
+    
+    try:
+        # Check for AWS credentials
+        if not os.getenv('AWS_ACCESS_KEY_ID') or not os.getenv('AWS_SECRET_ACCESS_KEY'):
+            raise ValueError("AWS credentials not found in environment variables. "
+                           "Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.")
+
+        # Initialize S3 client
+        try:
+            s3 = boto3.client('s3', region_name=AWS_REGION)
+            # Test connection by checking if bucket exists
+            s3.head_bucket(Bucket=AWS_BUCKET_NAME)
+        except boto3.exceptions.NoCredentialsError:
+            raise ValueError("AWS credentials are invalid or not properly configured.")
+        except boto3.exceptions.ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            if error_code == '403':
+                raise ValueError(f"Access denied to bucket {AWS_BUCKET_NAME}. Check your AWS permissions.")
+            elif error_code == '404':
+                raise ValueError(f"Bucket {AWS_BUCKET_NAME} does not exist.")
+            else:
+                raise ValueError(f"AWS Error: {str(e)}")
+        
+        print(f"Downloading from s3://{AWS_BUCKET_NAME}/{AWS_OBJECT_KEY}")
+        
+        # Download the zip file
+        try:
+            s3.download_file(AWS_BUCKET_NAME, AWS_OBJECT_KEY, str(zip_path))
+            print("Successfully downloaded database zip")
+        except boto3.exceptions.ClientError as e:
+            if e.response.get('Error', {}).get('Code', '') == '404':
+                raise ValueError(f"File {AWS_OBJECT_KEY} not found in bucket {AWS_BUCKET_NAME}")
+            else:
+                raise ValueError(f"Error downloading file: {str(e)}")
+        
+        # Verify the downloaded file
+        if not zip_path.exists():
+            raise ValueError("Download appeared successful but file not found")
+        if zip_path.stat().st_size == 0:
+            raise ValueError("Downloaded file is empty")
+            
+        # Clean existing persist directory if it exists
+        if os.path.exists(PERSIST_DIR):
+            print(f"Cleaning existing {PERSIST_DIR}")
+            shutil.rmtree(PERSIST_DIR)
+        
+        # Extract the zip file
+        print(f"Extracting to {PERSIST_DIR}")
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(PERSIST_DIR)
+            print("Successfully extracted database")
+        except zipfile.BadZipFile:
+            raise ValueError("Downloaded file is not a valid ZIP file")
+        except Exception as e:
+            raise ValueError(f"Error extracting ZIP file: {str(e)}")
+        
+        # Verify extraction
+        if not os.path.exists(PERSIST_DIR) or not os.listdir(PERSIST_DIR):
+            raise ValueError("Extraction completed but database files not found")
+            
+    except Exception as e:
+        print(f"Error preparing database: {str(e)}")
+        print(f"Full traceback: {traceback.format_exc()}")
+        # Clean up any partially downloaded/extracted files
+        if zip_path.exists():
+            zip_path.unlink()
+        if os.path.exists(PERSIST_DIR):
+            shutil.rmtree(PERSIST_DIR)
+        raise
+    finally:
+        # Clean up the temporary zip file
+        if zip_path.exists():
+            zip_path.unlink()
+            print("Cleaned up temporary zip file")
 
 @lru_cache(maxsize=1)
 def get_persistent_client():
@@ -247,19 +339,18 @@ if __name__ == '__main__':
     # Initial setup
     print("\n=== Application Starting ===")
     
-    # Ensure persist directory exists
-    os.makedirs(PERSIST_DIR, exist_ok=True)
-    print(f"Ensured persist directory exists: {PERSIST_DIR}")
-    print(f"Persist directory contents: {os.listdir(PERSIST_DIR)}")
-    
-    # Initialize collection on startup
     try:
+        # Download and prepare database
+        download_and_prepare_db()
+        
+        # Initialize collection on startup
         print("Initializing collection on startup...")
         collection = create_or_load_collection()
         print("Successfully initialized collection on startup")
     except Exception as e:
-        print(f"Failed to initialize collection on startup: {str(e)}")
+        print(f"Failed to initialize application: {str(e)}")
         print(f"Full traceback: {traceback.format_exc()}")
+        raise
     
     port = int(os.getenv('PORT', 10000))
     print(f"\nStarting Flask application on port {port}")
