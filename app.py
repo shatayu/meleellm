@@ -335,23 +335,24 @@ def health_check():
             "collection_name": COLLECTION_NAME
         }), 500
 
+# Add this at the top level, after your app declaration but before the routes
+print("\n=== Application Starting ===")
+
+try:
+    # Download and prepare database
+    download_and_prepare_db()
+    
+    # Initialize collection on startup
+    print("Initializing collection on startup...")
+    collection = create_or_load_collection()
+    print("Successfully initialized collection on startup")
+except Exception as e:
+    print(f"Failed to initialize application: {str(e)}")
+    print(f"Full traceback: {traceback.format_exc()}")
+    raise
+
+# Keep this part for local development
 if __name__ == '__main__':
-    # Initial setup
-    print("\n=== Application Starting ===")
-    
-    try:
-        # Download and prepare database
-        download_and_prepare_db()
-        
-        # Initialize collection on startup
-        print("Initializing collection on startup...")
-        collection = create_or_load_collection()
-        print("Successfully initialized collection on startup")
-    except Exception as e:
-        print(f"Failed to initialize application: {str(e)}")
-        print(f"Full traceback: {traceback.format_exc()}")
-        raise
-    
     port = int(os.getenv('PORT', 10000))
     print(f"\nStarting Flask application on port {port}")
     app.run(host='0.0.0.0', port=port)
