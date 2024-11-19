@@ -14,6 +14,7 @@ from functools import lru_cache
 import traceback
 import anthropic
 from flask_cors import CORS
+import botocore.exceptions
 
 app = Flask(__name__)
 CORS(app)
@@ -114,7 +115,7 @@ def download_and_prepare_db():
             s3.head_bucket(Bucket=AWS_BUCKET_NAME)
         except boto3.exceptions.NoCredentialsError:
             raise ValueError("AWS credentials are invalid or not properly configured.")
-        except boto3.exceptions.ClientError as e:
+        except botocore.exceptions.ClientError as e:  # Changed this line
             error_code = e.response.get('Error', {}).get('Code', '')
             if error_code == '403':
                 raise ValueError(f"Access denied to bucket {AWS_BUCKET_NAME}. Check your AWS permissions.")
@@ -129,52 +130,11 @@ def download_and_prepare_db():
         try:
             s3.download_file(AWS_BUCKET_NAME, AWS_OBJECT_KEY, str(zip_path))
             print("Successfully downloaded database zip")
-        except boto3.exceptions.ClientError as e:
+        except botocore.exceptions.ClientError as e:  # Changed this line
             if e.response.get('Error', {}).get('Code', '') == '404':
                 raise ValueError(f"File {AWS_OBJECT_KEY} not found in bucket {AWS_BUCKET_NAME}")
             else:
                 raise ValueError(f"Error downloading file: {str(e)}")
-        
-        # Verify the downloaded file
-        if not zip_path.exists():
-            raise ValueError("Download appeared successful but file not found")
-        if zip_path.stat().st_size == 0:
-            raise ValueError("Downloaded file is empty")
-            
-        # Clean existing persist directory if it exists
-        if os.path.exists(PERSIST_DIR):
-            print(f"Cleaning existing {PERSIST_DIR}")
-            shutil.rmtree(PERSIST_DIR)
-        
-        # Extract the zip file
-        print(f"Extracting to {PERSIST_DIR}")
-        try:
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(PERSIST_DIR)
-            print("Successfully extracted database")
-        except zipfile.BadZipFile:
-            raise ValueError("Downloaded file is not a valid ZIP file")
-        except Exception as e:
-            raise ValueError(f"Error extracting ZIP file: {str(e)}")
-        
-        # Verify extraction
-        if not os.path.exists(PERSIST_DIR) or not os.listdir(PERSIST_DIR):
-            raise ValueError("Extraction completed but database files not found")
-            
-    except Exception as e:
-        print(f"Error preparing database: {str(e)}")
-        print(f"Full traceback: {traceback.format_exc()}")
-        # Clean up any partially downloaded/extracted files
-        if zip_path.exists():
-            zip_path.unlink()
-        if os.path.exists(PERSIST_DIR):
-            shutil.rmtree(PERSIST_DIR)
-        raise
-    finally:
-        # Clean up the temporary zip file
-        if zip_path.exists():
-            zip_path.unlink()
-            print("Cleaned up temporary zip file")
 
 @lru_cache(maxsize=1)
 def get_persistent_client():
